@@ -36,37 +36,41 @@ router.route('/')
         command = command.trim();
 
         var promptKey = "prompt:"+teamId+":"+channelId;
+        var trailKey = teamId+":"+channelId;
 
         // Key for an existing prompt.
         // Uses a setex so that it disappears
-        var message = "";
-        if(client.exists(promptKey)) {
-            var key = client.get(promptKey);
-            message = matchAnswer(username, command, key);
-        } else if(command.match(/^start race/i)) {
-            message = getPrompt(promptKey);
-        } else if(command.match(/^show scores \d+/i)) {
-        } else if(command.match(/^help/i)) {
-        } else {
-        }
-
-        var response = formatAnswer(message);
-        res.send(response);
+        var text = "";
+        client.exists(promptKey, function(playing) {
+            if(playing) {
+                var key = client.get(promptKey);
+                text = matchAnswer(username, trailKey, command, key);
+            } else if(command.indexOf("start race") === 0) {
+                text = getPrompt(promptKey);
+            } else if(command.indexOf("show scores") === 0) {
+            } else if(command.indexOf("help") === 0) {
+            } else {
+            }
+            var response = formatResponse(text);
+            res.send(response);
+        });
+       
+        
     });
 
 router.use(function(req, res, next) {
     next();
 });
 
-app.use('/api', router);
+app.use('', router);
 
 app.listen(port);
 console.log("TYPERACER HAS BEGUN!");
 
-function matchAnswer(username, answer, index) {
+function matchAnswer(username, trailKey, answer, index) {
     var prompt = prompts[index];
     var userKey = username+":"+index+":score";
-    var timeKey = "prompt:start:"+teamId+":"+channelId;
+    var timeKey = "prompt:start:"+trailKey;
     var currTime = new Date();
     var response = "Sorry " + username+". You should really brush up on your typing skills. Or is it your reading skills? Who knows..";
     if(answer.trim() === prompt["answer"]) {
@@ -104,7 +108,7 @@ function getPrompt(promptKey) {
     client.setex("prompt"+prompt["id"]+":nouse", 3605, true);
     client.setex(promptKey, expireTime, prompt["answer"]);
 
-    return "Let the race begin!" + prompt["link"];
+    return "Let the race begin! " + prompt["link"];
 }
 
 function formatResponse(message) {
