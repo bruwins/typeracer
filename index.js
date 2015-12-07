@@ -19,7 +19,7 @@ var expireTime = process.env.SECONDS_TO_ANSWER || 40;
 var botUsername = process.env.BOT_USERNAME || "tr";
 
 var router = express.Router();
-router.route('/slack')
+router.route('/')
     .post(function(req, res) {
         var body = req.body;
         var teamId = body.team_id;
