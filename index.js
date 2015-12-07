@@ -1,6 +1,7 @@
 require('dotenv').load();
 var express = require('express'),
     app = express(),
+    fs = require('fs'),
     bodyParser = require('body-parser'),
     redis = require('redis'),
     querystring = require('querystring'),
@@ -8,12 +9,14 @@ var express = require('express'),
 
 
 var client = redis.createClient(process.env.REDISCLOUD_URL, {no_read_check: true});
+var prompts = JSON.parse(fs.readFileSync('./prompts.json','utf8'));
 
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
 var port = process.env.PORT || 8087;
-var url = process.env.URL || 'https://hooks.slack.com/services/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';
+var expireTime = process.env.SECONDS_TO_ANSWER || 40;
+var botUsername = process.env.BOT_USERNAME || "tr";
 
 var router = express.Router();
 router.route('/slack')
@@ -32,14 +35,23 @@ router.route('/slack')
         var command = message.substring(message.indexOf(trigger)+trigger.length);
         command = command.trim();
 
+        var promptKey = "prompt:"+teamId+":"+channelId;
+
         // Key for an existing prompt.
         // Uses a setex so that it disappears
-        var promptKey = "prompt:"+teamId+":"+channelId;
-        // Key for most recent prompt
-        var currPromptKey = "currentPrompt:":+teamId+":"+channelId;
-        if(client.exists(promptKey) {
-
+        var message = "";
+        if(client.exists(promptKey)) {
+            var key = client.get(promptKey);
+            message = matchAnswer(username, command, key);
+        } else if(command.match(/^start race/i)) {
+            message = getPrompt(promptKey);
+        } else if(command.match(/^show scores \d+/i)) {
+        } else if(command.match(/^help/i)) {
+        } else {
         }
+
+        var response = formatAnswer(message);
+        res.send(response);
     });
 
 router.use(function(req, res, next) {
@@ -49,3 +61,54 @@ router.use(function(req, res, next) {
 app.use('/api', router);
 
 app.listen(port);
+console.log("TYPERACER HAS BEGUN!");
+
+function matchAnswer(username, answer, index) {
+    var prompt = prompts[index];
+    var userKey = username+":"+index+":score";
+    var timeKey = "prompt:start:"+teamId+":"+channelId;
+    var currTime = new Date();
+    var response = "Sorry " + username+". You should really brush up on your typing skills. Or is it your reading skills? Who knows..";
+    if(answer.trim() === prompt["answer"]) {
+        var startTime = client.get(timeKey);
+        var elapsedTime = (currTime.getTime() - startTime)/1000;
+        response = "Nice work "+username+"! That took " + elapsedTime + "seconds. ";
+        // Set the newest high score
+        if(!client.exists(userKey)) {
+            client.set(userKey,elapsedTime);
+        } else {
+            var score = client.get(userKey);
+            if(score > elapsedTime) {
+                client.set(userKey, elapsedTime);
+                response += "That's a new personal best for you!";
+            }
+        }
+
+    }
+
+    return response;
+}
+
+
+function getPrompt(promptKey) {
+    var prompt = prompts[Math.floor(Math.random()*prompts.length)];
+    var numRetry = 0;
+    while(client.exists("prompt"+prompt["id"]+":nouse")) {
+        prompt = prompts[Math.floor(Math.random()*prompts.length)];
+        numRetry++;
+        if(numRetry > 200) {
+            return "Sorry I could not find any new prompts to use";
+        }
+    }
+
+    client.setex("prompt"+prompt["id"]+":nouse", 3605, true);
+    client.setex(promptKey, expireTime, prompt["answer"]);
+
+    return "Let the race begin!" + prompt["link"];
+}
+
+function formatResponse(message) {
+    var response = {text: message, link_names: 1};
+    response["username"] = botUsername;
+    return JSON.stringify(response);
+}
