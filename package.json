@@ -6,7 +6,7 @@
         "mongoose": "~3.6.13",
         "body-parser": "~1.0.1",
         "redis": "0.1.7",
-        "request": "2.51.0"
+        "request": "2.51.0",
         "node": "5.1.1"
     }
 }
