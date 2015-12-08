@@ -46,6 +46,7 @@ router.route('/')
 
         var command = message.substring(message.indexOf(trigger)+trigger.length);
         command = command.trim();
+        console.log("COMMAND: ", command);
 
         var keySignature = teamId+":"+channelId;
 
@@ -180,8 +181,10 @@ function getPrompt(keySignature, res, retry) {
             client.setex("prompt"+prompt["id"]+":nouse", 3600, true);
             client.setex(promptKey+keySignature, expireTime+1, index);
             client.set(timeKey+keySignature, currTime.getTime());
-            currScores[keySignature] = "[Top Scores]\n";
-            setTimeout(sendResults(keySignature), expireTime*1000);
+            currScores[keySignature] = "The race is over!\n[Top Scores]\n";
+            setTimeout(function() {
+                sendResults(keySignature);
+            }, expireTime*1000);
             var text = "[Question " + (index+1)+"] Let the race begin! " + prompt["link"];
             res.send(formatResponse(text));
         }
