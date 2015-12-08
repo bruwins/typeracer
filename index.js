@@ -55,7 +55,7 @@ router.route('/')
         // Uses a setex so that it disappears
         var text = "";
         client.exists(promptKey+keySignature, function(err, playing) {
-            console.log("PLAYING: ", playing);
+            console.log("PLAYING: ", playing, promptKey+keySignature);
             if(playing) {
                 text = matchAnswer(username, keySignature, command, res);
             } else if(command.indexOf("start race") === 0) {
