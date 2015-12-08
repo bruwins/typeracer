@@ -92,6 +92,8 @@ function matchAnswer(username, keySignature, answer, res) {
     client.get(promptKey+keySignature, function(err, index) {
         var prompt = prompts[index];
         var currTime = new Date();
+        console.log("ANSWER1: ["+answer.trim()+"]");
+        console.log("ANSWER2: ["+prompt["answer"]+"]");
         if(answer.trim() === prompt["answer"]) {
             client.get(timeKey+keySignature, function(err, startTime) {
                 var elapsedTime = (currTime.getTime() - startTime)/1000;
