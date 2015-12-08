@@ -138,7 +138,7 @@ function showScores(index, res) {
     var index = index-1;
     var scoreKey = "score"+index+":*";
     console.log("SHOW SCORES: ", scoreKey);
-    client.scan('0', 'MATCH',scoreKey, 'COUNT', '5', function(err, result) {
+    client.scan('0', 'MATCH',scoreKey, function(err, result) {
         console.log("SCORE RESULTS: ", result);
         var scores = [];
         var scoreKeys = result[1];
