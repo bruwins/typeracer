@@ -46,7 +46,7 @@ router.route('/')
 
         var command = message.substring(message.indexOf(trigger)+trigger.length);
         command = command.trim();
-        console.log("COMMAND: ", command);
+        console.log("COMMAND: ["+ command+"]");
 
         var keySignature = teamId+":"+channelId;
 
