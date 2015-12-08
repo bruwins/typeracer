@@ -19,6 +19,7 @@ var botUsername = process.env.BOT_USERNAME || "typeracer";
 var slackURL = process.env.INCOMING_WEBHOOK_URL;
 var webhookToken = process.env.OUTGOING_WEBHOOK_TOKEN;
 
+console.log("expireTime: " + expireTime + " | slackURL: " + slackURL + " | token: " + webhookToken);
 
 // Initializing Defaults
 var promptKey = "prompt:";
