@@ -56,9 +56,7 @@ router.route('/')
         var text = "";
         client.exists(promptKey+keySignature, function(err, playing) {
             console.log("PLAYING: ", playing, promptKey+keySignature);
-            if(command.indexOf("start race") === 0) {
-                text = getPrompt(keySignature, res);
-            } else if(command.indexOf("show scores") === 0) {
+            if(command.indexOf("show scores") === 0) {
                 var index = command.replace(/show scores/g, "");
                 index = index.trim();
                 showScores(index, res);
@@ -66,6 +64,8 @@ router.route('/')
                 res.send(formatResponse("start race | show scores [question #]"));
             } else if(playing) {
                 text = matchAnswer(username, keySignature, command, res);
+            } else if(command.indexOf("start race") === 0) {
+                text = getPrompt(keySignature, res);
             } else {
                 res.send(formatResponse("I have no idea what you're saying, "+username));
             }
@@ -117,6 +117,7 @@ function updateCurrentScore(username, elapsedTime, keySignature) {
 // Check to see if a user has a new high score for a particular question
 function setUserScore(index, username, elapsedTime) {
     var scoreKey = "score:"+index+":"+username;
+    console.log("SCORE KEY: ", scoreKey);
     client.exists(scoreKey, function(err, exists) {
         if(exists) {
             client.get(scoreKey, function(err, score) {
