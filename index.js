@@ -63,6 +63,10 @@ router.route('/')
             } else if(command.indexOf("help") === 0) {
                 res.send(formatResponse("start race | show scores [question #]"));
             } else if(playing) {
+                if(command.indexOf("start race") === 0) {
+                    res.send(formatResponse("Calm yourself! Wait for the current race to finish."));
+                    return;
+                }
                 text = matchAnswer(username, keySignature, command, res);
             } else if(command.indexOf("start race") === 0) {
                 text = getPrompt(keySignature, res);
@@ -195,7 +199,7 @@ function getPrompt(keySignature, res, retry) {
             client.setex("prompt"+prompt["id"]+":nouse", 3600, true);
             client.setex(promptKey+keySignature, expireTime+1, index);
             client.set(timeKey+keySignature, currTime.getTime());
-            currScores[keySignature] = "The race is over!\n[Top Scores]\n";
+            currScores[keySignature] = "Time's Up! Here were the top scores:\n";
             setTimeout(function() {
                 sendResults(keySignature);
             }, expireTime*1000);
