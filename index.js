@@ -194,6 +194,7 @@ function getPrompt(keySignature, res, retry) {
 }
 
 function sendResults(keySignature) {
+    client.del(promptKey+keySignature);
     var payload = {
         text: currScores[keySignature]
     };
