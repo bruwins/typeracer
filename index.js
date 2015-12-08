@@ -5,6 +5,7 @@ var express = require('express'),
     bodyParser = require('body-parser'),
     redis = require('redis'),
     request = require('request');
+require("redis-scanstreams")(redis)
 
 
 var client = redis.createClient(process.env.REDISCLOUD_URL, {no_read_check: true});
@@ -116,7 +117,7 @@ function updateCurrentScore(username, elapsedTime, keySignature) {
 
 // Check to see if a user has a new high score for a particular question
 function setUserScore(index, username, elapsedTime) {
-    var scoreKey = "score:"+index+":"+username;
+    var scoreKey = "score"+index+":"+username;
     console.log("SCORE KEY: ", scoreKey);
     client.exists(scoreKey, function(err, exists) {
         console.log("SCORE EXISTS?", exists);
@@ -136,7 +137,7 @@ function setUserScore(index, username, elapsedTime) {
 // Show the scores of a certain question
 function showScores(index, res) {
     var index = index-1;
-    var scoreKey = "score:"+index+":*";
+    var scoreKey = "score"+index+":*";
     console.log("SHOW SCORES: ", scoreKey);
     client.scan('0', 'MATCH',scoreKey, 'COUNT', '5', function(err, result) {
         console.log("SCORE RESULTS: ", result);
@@ -155,7 +156,7 @@ function showScores(index, res) {
             var key = scoreKeys[c];
             (function(key) {
                 client.get(key, function(err, score) {
-                    var user = key.replace(/score:\d+:/g,'');
+                    var user = key.replace(/score\d+:/g,'');
                     scores.push({username: user, score: score});
                     remaining--;
                     if(remaining === 0) {
