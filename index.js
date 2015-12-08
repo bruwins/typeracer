@@ -120,6 +120,7 @@ function setUserScore(index, username, elapsedTime) {
     client.exists(scoreKey, function(err, exists) {
         if(exists) {
             client.get(scoreKey, function(err, score) {
+                console.log("PREVIOUS SCORE: ", score);
                 if(score > elapsedTime) {
                     client.set(scoreKey, elapsedTime);
                 }
