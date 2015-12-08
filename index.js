@@ -5,7 +5,6 @@ var express = require('express'),
     bodyParser = require('body-parser'),
     redis = require('redis'),
     request = require('request');
-require("redis-scanstreams")(redis)
 
 
 var client = redis.createClient(process.env.REDISCLOUD_URL, {no_read_check: true});
