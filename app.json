@@ -31,6 +31,10 @@
       "required": true,
       "value": "30"
     },
+    "INCOMING_WEBHOOK_URL": {
+      "description": "The incoming webhook URL to post to. This is mainly used for end of race updates",
+      "reuired": true
+    },
     "CHANNEL_BLACKLIST": {
       "description": "Comma-separated list of channel names in which this bot is not allowed to respond",
       "required": false,

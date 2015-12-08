@@ -4,7 +4,6 @@ var express = require('express'),
     fs = require('fs'),
     bodyParser = require('body-parser'),
     redis = require('redis'),
-    querystring = require('querystring'),
     request = require('request');
 
 
@@ -16,43 +15,57 @@ app.use(bodyParser.json());
 
 var port = process.env.PORT || 8087;
 var expireTime = process.env.SECONDS_TO_ANSWER || 40;
-var botUsername = process.env.BOT_USERNAME || "tr";
+var botUsername = process.env.BOT_USERNAME || "typeracer";
+var slackURL = process.env.INCOMING_WEBHOOK_URL;
+var webhookToken = process.env.OUTGOING_WEBHOOK_TOKEN;
 
+
+// Initializing Defaults
+var promptKey = "prompt:";
+var timeKey = "prompt:start:";
+var currScores = {};
+
+
+/*-------------- Routing/API stuff --------------*/
 var router = express.Router();
 router.route('/')
     .post(function(req, res) {
         var body = req.body;
+        var token = body.token;
         var teamId = body.team_id;
-        var teamName = body.team_domain;
         var channelId = body.channel_id;
-        var channelName = body.channel_name;
         var message = body.text;
         var trigger = body.trigger_word;
         var username = body.user_name;
         var timestamp = body.timestamp;
 
-        var slackId = "slack_"+teamId+"_"+channelId;
+        if(token !== webhookToken) {
+            res.send(formatResponse("Invalid token"));
+            return;
+        }
+
         var command = message.substring(message.indexOf(trigger)+trigger.length);
         command = command.trim();
 
-        var promptKey = "prompt:"+teamId+":"+channelId;
-        var trailKey = teamId+":"+channelId;
+        var keySignature = teamId+":"+channelId;
 
         // Key for an existing prompt.
         // Uses a setex so that it disappears
         var text = "";
-        client.exists(promptKey, function(playing) {
+        client.exists(promptKey+keySignature, function(err, playing) {
             if(playing) {
-                var key = client.get(promptKey);
-                text = matchAnswer(username, trailKey, command, key);
+                text = matchAnswer(username, keySignature, command, res);
             } else if(command.indexOf("start race") === 0) {
-                text = getPrompt(promptKey);
+                text = getPrompt(keySignature, res);
             } else if(command.indexOf("show scores") === 0) {
+                var index = command.replace(/show scores/g, "");
+                index = index.trim();
+                showScores(index, res);
             } else if(command.indexOf("help") === 0) {
+                res.send(formatResponse("start race | show scores [question #]"));
             } else {
+                res.send(formatResponse("I have no idea what you're saying, "+username));
             }
-            var response = formatResponse(text);
-            res.send(response);
         });
        
         
@@ -65,52 +78,132 @@ router.use(function(req, res, next) {
 app.use('', router);
 
 app.listen(port);
-console.log("TYPERACER HAS BEGUN!");
 
-function matchAnswer(username, trailKey, answer, index) {
-    var prompt = prompts[index];
-    var userKey = username+":"+index+":score";
-    var timeKey = "prompt:start:"+trailKey;
-    var currTime = new Date();
-    var response = "Sorry " + username+". You should really brush up on your typing skills. Or is it your reading skills? Who knows..";
-    if(answer.trim() === prompt["answer"]) {
-        var startTime = client.get(timeKey);
-        var elapsedTime = (currTime.getTime() - startTime)/1000;
-        response = "Nice work "+username+"! That took " + elapsedTime + "seconds. ";
-        // Set the newest high score
-        if(!client.exists(userKey)) {
-            client.set(userKey,elapsedTime);
+
+
+
+/*---------- Below this line are all the supporting functions ------------*/
+
+// Check if an answer is correct or not
+function matchAnswer(username, keySignature, answer, res) {
+    client.get(promptKey+keySignature, function(err, index) {
+        var prompt = prompts[index];
+        var currTime = new Date();
+        if(answer.trim() === prompt["answer"]) {
+            client.get(timeKey+keySignature, function(err, startTime) {
+                var elapsedTime = (currTime.getTime() - startTime)/1000;
+                response = "Nice work "+username+"! That took " + elapsedTime + "seconds. ";
+                setUserScore(index, username, elapsedTime);
+                updateCurrentScore(username,elapsedTime, keySignature);
+                res.send(formatResponse(response));
+            });
         } else {
-            var score = client.get(userKey);
-            if(score > elapsedTime) {
-                client.set(userKey, elapsedTime);
-                response += "That's a new personal best for you!";
-            }
+            var response = "Sorry " + username+". You should really brush up on your typing skills. Or is it your reading skills?";
+            res.send(formatResponse(response));
         }
-
-    }
-
-    return response;
+    });
 }
 
-
-function getPrompt(promptKey) {
-    var prompt = prompts[Math.floor(Math.random()*prompts.length)];
-    var numRetry = 0;
-    while(client.exists("prompt"+prompt["id"]+":nouse")) {
-        prompt = prompts[Math.floor(Math.random()*prompts.length)];
-        numRetry++;
-        if(numRetry > 200) {
-            return "Sorry I could not find any new prompts to use";
-        }
-    }
-
-    client.setex("prompt"+prompt["id"]+":nouse", 3605, true);
-    client.setex(promptKey, expireTime, prompt["answer"]);
-
-    return "Let the race begin! " + prompt["link"];
+function updateCurrentScore(username, elapsedTime, keySignature) {
+    currScores[keySignature] += (username + " - " + elapsedTime + "\n");
 }
 
+// Check to see if a user has a new high score for a particular question
+function setUserScore(index, username, elapsedTime) {
+    var scoreKey = "score:"+index+":"+username;
+    client.exists(scoreKey, function(err, exists) {
+        if(exists) {
+            client.get(scoreKey, function(err, score) {
+                if(score > elapsedTime) {
+                    client.set(scoreKey, elapsedTime);
+                }
+            });
+        } else {
+            client.set(scoreKey, elapsedTime);
+        }
+    });
+}
+
+// Show the scores of a certain question
+function showScores(index, res) {
+    var index = index-1;
+    client.scan('0', 'MATCH','score:'+index+":*", 'COUNT', '5', function(err, result) {
+        var scores = [];
+        var scoreKeys = result[1];
+
+        // TODO
+        // This next part is kind of ugly. Currently using a closure to lock the value into place so that
+        // I can sync multiple async calls. There should be a better way to do this...
+        var count = scoreKeys.length;
+        var remaining = count;
+        for(var c=0; c<count; c++) {
+            var key = scoreKeys[c];
+            (function(key) {
+                client.get(key, function(err, score) {
+                    var user = key.replace(/score:\d+:/g,'');
+                    scores.push({username: user, score: score});
+                    remaining--;
+                    if(remaining === 0) {
+                        scores.sort(function(a,b) {
+                            return a.score-b.score;
+                        });
+                        var response = "Question " + (index+1) + " Scores: \n";
+                        for(var s=0; s<scores.length; s++) {
+                            response += scores[s].username + " - " + scores[s].score + "\n";
+                        }
+                        res.send(formatResponse(response));
+                    }
+                });
+            })(key);
+        }
+    });
+}
+
+// Get a new prompt to be sent back to the Slack Server
+// Will recursively call itself to get a new prompt if the prompt selected has been used within the last hour
+// This is to work around the fact that Slack will not reshow an image that has been shown within the last hour
+function getPrompt(keySignature, res, retry) {
+    var index = Math.floor(Math.random()*prompts.length);
+    var prompt = prompts[index];
+    if(!retry) {
+        retry = 1;
+    } else {
+        retry++;
+    }
+    client.exists("prompt"+prompt["id"]+":nouse", function(err, usedPrompt) {
+        if(retry > 200) {
+            res.send(formatResponse("Sorry I could not find any new prompts to use"));
+        } else if(usedPrompt) {
+            getPrompt(keySignature, res,retry);
+        } else {
+            var currTime = new Date();
+            client.setex("prompt"+prompt["id"]+":nouse", 3600, true);
+            client.setex(promptKey+keySignature, expireTime+1, index);
+            client.set(timeKey+keySignature, currTime.getTime());
+            currScores[keySignature] = "[Top Scores]\n";
+            setTimeout(sendResults(keySignature), expireTime*1000);
+            var text = "[Question " + (index+1)+"] Let the race begin! " + prompt["link"];
+            res.send(formatResponse(text));
+        }
+    });
+}
+
+function sendResults(keySignature) {
+    var payload = {
+        text: currScores[keySignature]
+    };
+    request.post(slackURL, {
+        form: {
+                  payload: JSON.stringify(payload)
+              }
+    }, function(err, response) {
+        if(err) {
+            console.log("REQUEST ERROR: ", err);
+        }
+    });
+}
+
+// Function to format the response sent back to the Slack server
 function formatResponse(message) {
     var response = {text: message, link_names: 1};
     response["username"] = botUsername;
