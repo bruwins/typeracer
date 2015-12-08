@@ -56,9 +56,7 @@ router.route('/')
         var text = "";
         client.exists(promptKey+keySignature, function(err, playing) {
             console.log("PLAYING: ", playing, promptKey+keySignature);
-            if(playing) {
-                text = matchAnswer(username, keySignature, command, res);
-            } else if(command.indexOf("start race") === 0) {
+            if(command.indexOf("start race") === 0) {
                 text = getPrompt(keySignature, res);
             } else if(command.indexOf("show scores") === 0) {
                 var index = command.replace(/show scores/g, "");
@@ -66,6 +64,8 @@ router.route('/')
                 showScores(index, res);
             } else if(command.indexOf("help") === 0) {
                 res.send(formatResponse("start race | show scores [question #]"));
+            } else if(playing) {
+                text = matchAnswer(username, keySignature, command, res);
             } else {
                 res.send(formatResponse("I have no idea what you're saying, "+username));
             }
@@ -92,6 +92,7 @@ function matchAnswer(username, keySignature, answer, res) {
     client.get(promptKey+keySignature, function(err, index) {
         var prompt = prompts[index];
         var currTime = new Date();
+        console.log("PROMPT: ", prompt);
         console.log("ANSWER1: ["+answer.trim()+"]");
         console.log("ANSWER2: ["+prompt["answer"]+"]");
         if(answer.trim() === prompt["answer"]) {
@@ -133,6 +134,7 @@ function setUserScore(index, username, elapsedTime) {
 function showScores(index, res) {
     var index = index-1;
     client.scan('0', 'MATCH','score:'+index+":*", 'COUNT', '5', function(err, result) {
+        console.log("SCORE RESULTS: ", result);
         var scores = [];
         var scoreKeys = result[1];
 
@@ -141,6 +143,9 @@ function showScores(index, res) {
         // I can sync multiple async calls. There should be a better way to do this...
         var count = scoreKeys.length;
         var remaining = count;
+        if(count === 0) {
+            res.send(formatResponse("There are no scores for this question yet!"));
+        }
         for(var c=0; c<count; c++) {
             var key = scoreKeys[c];
             (function(key) {
