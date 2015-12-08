@@ -119,6 +119,7 @@ function setUserScore(index, username, elapsedTime) {
     var scoreKey = "score:"+index+":"+username;
     console.log("SCORE KEY: ", scoreKey);
     client.exists(scoreKey, function(err, exists) {
+        console.log("SCORE EXISTS?", exists);
         if(exists) {
             client.get(scoreKey, function(err, score) {
                 console.log("PREVIOUS SCORE: ", score);
